@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PneumoScan — Sistema de análise de radiografias do tórax com visão computacional</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #080d14;
+      --surface:   #0d1520;
+      --border:    #1c2d42;
+      --border-hi: #2a4460;
+      --cyan:      #00d4ff;
+      --cyan-dim:  #0099bb;
+      --green:     #00e5a0;
+      --red:       #ff4d6d;
+      --text:      #c8dff0;
+      --text-dim:  #5a7a96;
+      --mono:      'IBM Plex Mono', monospace;
+      --sans:      'DM Sans', sans-serif;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem 1rem 4rem;
+      background-image:
+        radial-gradient(ellipse 800px 400px at 50% -10%, #001a2e 0%, transparent 60%),
+        linear-gradient(180deg, #080d14 0%, #060b11 100%);
+    }
+
+    /* ── Header ────────────────────────────────────── */
+    header {
+      width: 100%;
+      max-width: 860px;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding-bottom: 2rem;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 3rem;
+    }
+    .logo-mark {
+      width: 44px; height: 44px;
+      border: 1.5px solid var(--cyan);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      position: relative;
+      flex-shrink: 0;
+    }
+    .logo-mark svg { width: 26px; height: 26px; }
+    .logo-text h1 {
+      font-family: var(--mono);
+      font-size: 1.15rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      color: #fff;
+    }
+    .logo-text p {
+      font-size: 0.72rem;
+      font-family: var(--mono);
+      color: var(--text-dim);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .badge {
+      margin-left: auto;
+      font-family: var(--mono);
+      font-size: 0.65rem;
+      color: var(--cyan-dim);
+      border: 1px solid var(--border);
+      padding: 0.3rem 0.7rem;
+      border-radius: 999px;
+      letter-spacing: 0.08em;
+    }
+
+    /* ── Main layout ─────────────────────────────── */
+    main {
+      width: 100%;
+      max-width: 860px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+    }
+    @media (max-width: 680px) { main { grid-template-columns: 1fr; } }
+
+    /* ── Panel ───────────────────────────────────── */
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+    }
+    .panel-header {
+      padding: 1rem 1.4rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+    .panel-header .dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--cyan);
+      box-shadow: 0 0 8px var(--cyan);
+      flex-shrink: 0;
+    }
+    .panel-header span {
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+    }
+    .panel-body { padding: 1.4rem; }
+
+    /* ── Drop zone ───────────────────────────────── */
+    #drop-zone {
+      border: 1.5px dashed var(--border-hi);
+      border-radius: 12px;
+      padding: 2.4rem 1rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.9rem;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      text-align: center;
+    }
+    #drop-zone:hover, #drop-zone.drag-over {
+      border-color: var(--cyan);
+      background: rgba(0, 212, 255, 0.04);
+    }
+    #drop-zone .icon svg {
+      width: 38px; height: 38px;
+      stroke: var(--cyan-dim);
+    }
+    #drop-zone .primary-text {
+      font-size: 0.85rem;
+      color: var(--text);
+      font-weight: 500;
+    }
+    #drop-zone .sub-text {
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      color: var(--text-dim);
+    }
+    #file-input { display: none; }
+
+    .btn-upload {
+      margin-top: 0.4rem;
+      background: transparent;
+      border: 1px solid var(--border-hi);
+      color: var(--cyan);
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      letter-spacing: 0.06em;
+      padding: 0.5rem 1.2rem;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .btn-upload:hover {
+      background: rgba(0,212,255,0.08);
+      border-color: var(--cyan);
+    }
+
+    /* ── Preview ─────────────────────────────────── */
+    #preview-wrap {
+      display: none;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    #preview-wrap.visible { display: flex; }
+    #preview-img {
+      width: 100%;
+      border-radius: 10px;
+      object-fit: cover;
+      max-height: 260px;
+      filter: grayscale(40%) brightness(0.9) contrast(1.1);
+      border: 1px solid var(--border);
+    }
+    .file-info {
+      display: flex;
+      justify-content: space-between;
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      color: var(--text-dim);
+    }
+    .btn-analyze {
+      width: 100%;
+      padding: 0.85rem;
+      background: var(--cyan);
+      color: #020810;
+      font-family: var(--mono);
+      font-weight: 600;
+      font-size: 0.78rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.15s;
+      display: flex; align-items: center; justify-content: center; gap: 0.6rem;
+    }
+    .btn-analyze:hover { opacity: 0.88; transform: translateY(-1px); }
+    .btn-analyze:active { transform: translateY(0); }
+    .btn-analyze:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+    .btn-reset {
+      width: 100%;
+      padding: 0.6rem;
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      letter-spacing: 0.06em;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .btn-reset:hover { border-color: var(--border-hi); color: var(--text); }
+
+    /* ── Results panel ───────────────────────────── */
+    #result-panel .panel-body {
+      display: flex;
+      flex-direction: column;
+      gap: 1.4rem;
+    }
+
+    .result-placeholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.8rem;
+      min-height: 260px;
+      color: var(--text-dim);
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      letter-spacing: 0.06em;
+      text-align: center;
+    }
+    .result-placeholder svg { width: 40px; height: 40px; stroke: var(--border-hi); }
+
+    /* verdict */
+    .verdict {
+      display: none;
+      flex-direction: column;
+      gap: 1.4rem;
+      animation: fadeUp 0.4s ease;
+    }
+    .verdict.visible { display: flex; }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .verdict-label {
+      font-family: var(--mono);
+      font-size: 0.65rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin-bottom: 0.3rem;
+    }
+    .verdict-value {
+      font-family: var(--mono);
+      font-size: 2.2rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+    }
+    .verdict-value.normal   { color: var(--green); }
+    .verdict-value.pneumonia { color: var(--red); }
+
+    /* confidence bar */
+    .conf-row { display: flex; flex-direction: column; gap: 0.5rem; }
+    .conf-labels {
+      display: flex; justify-content: space-between;
+      font-family: var(--mono); font-size: 0.68rem; color: var(--text-dim);
+    }
+    .conf-bar-bg {
+      width: 100%; height: 6px;
+      background: var(--border);
+      border-radius: 99px;
+      overflow: hidden;
+    }
+    .conf-bar-fill {
+      height: 100%;
+      border-radius: 99px;
+      width: 0%;
+      transition: width 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .conf-bar-fill.normal    { background: var(--green); box-shadow: 0 0 8px var(--green); }
+    .conf-bar-fill.pneumonia { background: var(--red);   box-shadow: 0 0 8px var(--red); }
+
+    /* prob grid */
+    .prob-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.8rem;
+    }
+    .prob-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.9rem 1rem;
+    }
+    .prob-card .label {
+      font-family: var(--mono);
+      font-size: 0.62rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin-bottom: 0.3rem;
+    }
+    .prob-card .value {
+      font-family: var(--mono);
+      font-size: 1.35rem;
+      font-weight: 600;
+    }
+    .prob-card.normal-card   .value { color: var(--green); }
+    .prob-card.pneumonia-card .value { color: var(--red); }
+
+    /* disclaimer */
+    .disclaimer {
+      font-size: 0.68rem;
+      color: var(--text-dim);
+      line-height: 1.6;
+      border-top: 1px solid var(--border);
+      padding-top: 1rem;
+    }
+
+    /* ── Spinner ─────────────────────────────────── */
+    .spinner {
+      width: 18px; height: 18px;
+      border: 2px solid rgba(0,0,0,0.3);
+      border-top-color: #020810;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Error toast ─────────────────────────────── */
+    #error-box {
+      display: none;
+      background: rgba(255,77,109,0.1);
+      border: 1px solid rgba(255,77,109,0.3);
+      border-radius: 10px;
+      padding: 0.8rem 1rem;
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      color: var(--red);
+      grid-column: 1 / -1;
+    }
+    #error-box.visible { display: block; }
+
+    /* ── Info row ────────────────────────────────── */
+    .info-row {
+      grid-column: 1 / -1;
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    .info-card {
+      flex: 1;
+      min-width: 160px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1rem 1.2rem;
+    }
+    .info-card .ic-label {
+      font-family: var(--mono);
+      font-size: 0.62rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin-bottom: 0.4rem;
+    }
+    .info-card .ic-value {
+      font-family: var(--mono);
+      font-size: 0.85rem;
+      color: var(--cyan);
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo-mark">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--cyan)">
+      <path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2Z"/>
+      <path d="M12 8v4l3 3"/>
+      <circle cx="12" cy="12" r="2" fill="var(--cyan)" stroke="none"/>
+    </svg>
+  </div>
+  <div class="logo-text">
+    <h1>PneumoScan</h1>
+    <p>SISTEMA DE ANÁLISE DE RADIOGRAFIAS DO TÓRAX - EXPERIMENTAL!!!</p>
+  </div>
+  <div class="badge">EfficientNet-B0 · v1.0</div>
+</header>
+
+<main>
+  <!-- Upload panel -->
+  <div class="panel">
+    <div class="panel-header">
+      <div class="dot"></div>
+      <span>Imagem de Entrada</span>
+    </div>
+    <div class="panel-body">
+
+      <!-- Drop zone -->
+      <div id="drop-zone">
+        <div class="icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4">
+            <rect x="2" y="3" width="20" height="18" rx="3"/>
+            <circle cx="8.5" cy="8.5" r="1.5"/>
+            <path d="M21 15l-5-5L5 21"/>
+          </svg>
+        </div>
+        <p class="primary-text">Arraste e solte a imagem aqui</p>
+        <p class="sub-text">JPEG · PNG · WEBP · max 10 MB</p>
+        <button class="btn-upload" onclick="document.getElementById('file-input').click()">
+          Abrir navegador de arquivos
+        </button>
+        <input type="file" id="file-input" accept="image/jpeg,image/png,image/webp" />
+      </div>
+
+      <!-- Preview (shown after file selected) -->
+      <div id="preview-wrap">
+        <img id="preview-img" alt="X-Ray preview" />
+        <div class="file-info">
+          <span id="file-name">—</span>
+          <span id="file-size">—</span>
+        </div>
+        <button class="btn-analyze" id="analyze-btn">
+          <span id="btn-text">Rodar Análise</span>
+          <div class="spinner" id="spinner" style="display:none"></div>
+        </button>
+        <button class="btn-reset" id="reset-btn">Limpar &amp; enviar nova imagem</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Result panel -->
+  <div class="panel" id="result-panel">
+    <div class="panel-header">
+      <div class="dot"></div>
+      <span>Saída Interpretativa (sujeita a erros!!!)</span>
+    </div>
+    <div class="panel-body">
+
+      <div class="result-placeholder" id="placeholder">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+          <path d="M9 3H5a2 2 0 0 0-2 2v4M9 3h6M9 3v18m6-18h4a2 2 0 0 1 2 2v4M15 3v18M3 9v12a2 2 0 0 0 2 2h4M21 9v12a2 2 0 0 1-2 2h-4"/>
+        </svg>
+        <span>Envie uma imagem para começar</span>
+      </div>
+
+      <div class="verdict" id="verdict">
+        <div>
+          <div class="verdict-label">Classification</div>
+          <div class="verdict-value" id="verdict-text">—</div>
+        </div>
+
+        <div class="conf-row">
+          <div class="conf-labels">
+            <span>Confidence</span>
+            <span id="conf-pct">—</span>
+          </div>
+          <div class="conf-bar-bg">
+            <div class="conf-bar-fill" id="conf-bar"></div>
+          </div>
+        </div>
+
+        <div class="prob-grid">
+          <div class="prob-card normal-card">
+            <div class="label">Normal</div>
+            <div class="value" id="prob-normal">—</div>
+          </div>
+          <div class="prob-card pneumonia-card">
+            <div class="label">Pneumonia</div>
+            <div class="value" id="prob-pneumonia">—</div>
+          </div>
+        </div>
+
+        <p class="disclaimer">
+          ⚠️ This tool is intended for research and educational purposes only.
+          Results must not be used as a substitute for professional medical diagnosis.
+          ⚠️ Esta ferramenta é para uso educacional apenas.
+          Os resultados não podem nem devem ser utilizados em substituição a uma consulta médica.
+        </p>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Error -->
+  <div id="error-box"></div>
+
+  <!-- Info row -->
+  <div class="info-row">
+    <div class="info-card">
+      <div class="ic-label">Modelo</div>
+      <div class="ic-value">EfficientNet-B0</div>
+    </div>
+    <div class="info-card">
+      <div class="ic-label">Esperada Baixa Acurácia</div>
+      <div class="ic-value">Modelo em Teste</div>
+    </div>
+    <div class="info-card">
+      <div class="ic-label">Tamanho de entrada:</div>
+      <div class="ic-value">224 × 224 px</div>
+    </div>
+    <div class="info-card">
+      <div class="ic-label">Classes</div>
+      <div class="ic-value">NORMAL · PNEUMONIA</div>
+    </div>
+  </div>
+</main>
+
+<script>
+  const API_BASE = "http://localhost:8000";
+
+  const dropZone   = document.getElementById("drop-zone");
+  const fileInput  = document.getElementById("file-input");
+  const previewWrap = document.getElementById("preview-wrap");
+  const previewImg  = document.getElementById("preview-img");
+  const fileName   = document.getElementById("file-name");
+  const fileSize   = document.getElementById("file-size");
+  const analyzeBtn = document.getElementById("analyze-btn");
+  const btnText    = document.getElementById("btn-text");
+  const spinner    = document.getElementById("spinner");
+  const resetBtn   = document.getElementById("reset-btn");
+  const placeholder = document.getElementById("placeholder");
+  const verdict    = document.getElementById("verdict");
+  const verdictText = document.getElementById("verdict-text");
+  const confPct    = document.getElementById("conf-pct");
+  const confBar    = document.getElementById("conf-bar");
+  const probNormal  = document.getElementById("prob-normal");
+  const probPneum   = document.getElementById("prob-pneumonia");
+  const errorBox   = document.getElementById("error-box");
+
+  let selectedFile = null;
+
+  // ── Drag & drop ──────────────────────────────────────────
+  dropZone.addEventListener("dragover", e => { e.preventDefault(); dropZone.classList.add("drag-over"); });
+  dropZone.addEventListener("dragleave", () => dropZone.classList.remove("drag-over"));
+  dropZone.addEventListener("drop", e => {
+    e.preventDefault();
+    dropZone.classList.remove("drag-over");
+    const f = e.dataTransfer.files[0];
+    if (f) handleFile(f);
+  });
+  dropZone.addEventListener("click", e => {
+    if (e.target.tagName !== "BUTTON") fileInput.click();
+  });
+  fileInput.addEventListener("change", () => {
+    if (fileInput.files[0]) handleFile(fileInput.files[0]);
+  });
+
+  function handleFile(f) {
+    selectedFile = f;
+    previewImg.src = URL.createObjectURL(f);
+    fileName.textContent = f.name;
+    fileSize.textContent = (f.size / 1024).toFixed(1) + " KB";
+    dropZone.style.display = "none";
+    previewWrap.classList.add("visible");
+    resetResult();
+  }
+
+  // ── Reset ─────────────────────────────────────────────────
+  resetBtn.addEventListener("click", reset);
+  function reset() {
+    selectedFile = null;
+    fileInput.value = "";
+    previewImg.src = "";
+    dropZone.style.display = "flex";
+    previewWrap.classList.remove("visible");
+    resetResult();
+  }
+
+  function resetResult() {
+    verdict.classList.remove("visible");
+    placeholder.style.display = "flex";
+    errorBox.classList.remove("visible");
+    confBar.style.width = "0%";
+  }
+
+  // ── Analyze ───────────────────────────────────────────────
+  analyzeBtn.addEventListener("click", async () => {
+    if (!selectedFile) return;
+    setLoading(true);
+    errorBox.classList.remove("visible");
+
+    const form = new FormData();
+    form.append("file", selectedFile);
+
+    try {
+      const res = await fetch(`${API_BASE}/predict`, { method: "POST", body: form });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || `HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      showResult(data);
+    } catch (err) {
+      errorBox.textContent = `⚠ Error: ${err.message}`;
+      errorBox.classList.add("visible");
+    } finally {
+      setLoading(false);
+    }
+  });
+
+  function setLoading(on) {
+    analyzeBtn.disabled = on;
+    btnText.textContent = on ? "Analisando…" : "Rodar Análise";
+    spinner.style.display = on ? "block" : "none";
+  }
+
+  function showResult(data) {
+    const isPneum = data.prediction === "PNEUMONIA";
+    const cls = isPneum ? "pneumonia" : "normal";
+    const pct = (data.confidence * 100).toFixed(1);
+
+    verdictText.textContent = data.prediction;
+    verdictText.className = `verdict-value ${cls}`;
+
+    confPct.textContent = pct + "%";
+    confBar.className = `conf-bar-fill ${cls}`;
+    setTimeout(() => { confBar.style.width = pct + "%"; }, 50);
+
+    probNormal.textContent = (data.probabilities.NORMAL * 100).toFixed(1) + "%";
+    probPneum.textContent  = (data.probabilities.PNEUMONIA * 100).toFixed(1) + "%";
+
+    placeholder.style.display = "none";
+    verdict.classList.add("visible");
+  }
+</script>
+</body>
+</html>
