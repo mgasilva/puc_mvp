@@ -1,4 +1,5 @@
 from pathlib import Path
+import pandas as pd
 
 #import pandas as pd
 import pytest
@@ -13,8 +14,8 @@ from torchvision import models, transforms
 # =========================
 # Configuração
 # =========================
-MODEL_PATH = Path("best_pneumonia_model.pth")
-VAL_CSV = Path("data/val_labels.csv")
+MODEL_PATH = Path("/home/mgasilva/code/puc_mvp/best_pneumonia_model.pth")
+VAL_CSV = Path("/home/mgasilva/code/puc_mvp/data/val_labels.csv")
 
 BATCH_SIZE = 32
 IMAGE_SIZE = 224
